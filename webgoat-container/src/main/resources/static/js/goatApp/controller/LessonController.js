@@ -3,12 +3,11 @@ define(['jquery',
     'libs/backbone',
     'goatApp/model/LessonContentModel',
     'goatApp/view/LessonContentView',
-    'goatApp/view/PlanView',
-    'goatApp/view/SourceView',
-    'goatApp/view/SolutionView',
+//    'goatApp/view/PlanView',
+//    'goatApp/view/SourceView',
+//    'goatApp/view/SolutionView',
     'goatApp/view/HintView',
     'goatApp/view/HelpControlsView',
-    'goatApp/view/CookieView',
     'goatApp/view/ParamView',
     'goatApp/model/ParamModel',
     'goatApp/view/DeveloperControlsView',
@@ -19,20 +18,15 @@ define(['jquery',
     'goatApp/view/TitleView',
     'goatApp/model/LessonProgressModel',
     'goatApp/view/LessonProgressView',
-    'goatApp/view/LessonOverviewView',
-    'goatApp/model/LessonOverviewModel'
+    'goatApp/view/LessonOverviewView'
     ],
     function($,
         _,
         Backbone,
         LessonContentModel,
         LessonContentView,
-        PlanView,
-        SourceView,
-        SolutionView,
         HintView,
         HelpControlsView,
-        CookieView,
         ParamView,
         ParamModel,
         DeveloperControlsView,
@@ -43,8 +37,7 @@ define(['jquery',
         TitleView,
         LessonProgressModel,
         LessonProgressView,
-        LessonOverviewView,
-        LessonOverviewModel
+        LessonOverviewView
     ) {
         'use strict'
 
@@ -52,8 +45,6 @@ define(['jquery',
             this.lessonContent = new LessonContentModel();
             this.lessonProgressModel = new LessonProgressModel();
             this.lessonProgressView = new LessonProgressView(this.lessonProgressModel);
-            this.lessonOverviewModel = new LessonOverviewModel();
-            this.lessonOverview = new LessonOverviewView(this.lessonOverviewModel);
             this.lessonContentView = options.lessonContentView;
             this.titleView = options.titleView;
             this.developerControlsView = new DeveloperControlsView();
@@ -65,16 +56,37 @@ define(['jquery',
                 this.userAndInfoView = new UserAndInfoView();
                 this.menuButtonView = new MenuButtonView();
                 this.listenTo(this.lessonContentView, 'assignment:complete', this.updateMenu);
-                this.listenTo(this.lessonContentView, 'assignment:complete', this.updateLessonOverview);
+                this.listenTo(this.lessonContentView, 'endpoints:filtered', this.filterPageHints);
             };
+
+            this.filterPageHints = function(endpoints) {
+                //filter hints for page by
+                this.lessonHintView.filterHints(endpoints);
+            }
+
+            this.onHideHintsButton = function() {
+                this.helpControlsView.hideHintsButton();
+            }
+
+            this.onShowHintsButton = function() {
+                this.helpControlsView.showHintsButton();
+            }
 
             this.loadLesson = function(name,pageNum) {
 
                 if (this.name === name) {
+                    this.listenToOnce(this.lessonHintView, 'hints:showButton', this.onShowHintsButton);
+                    this.listenTo(this.lessonHintView, 'hints:hideButton', this.onHideHintsButton);
                     this.lessonContentView.navToPage(pageNum);
                     this.lessonHintView.hideHints();
+                    this.lessonHintView.showFirstHint();
+                    //this.lessonHintView.selectHints();
                     this.titleView.render(this.lessonInfoModel.get('lessonTitle'));
                     return;
+                }
+
+                if (pageNum && !this.name) {
+                    //placeholder
                 }
 
                 this.helpsLoaded = {};
@@ -82,10 +94,6 @@ define(['jquery',
                     //TODO: implement lesson not found or return to welcome page?
                 }
                 this.lessonContent.loadData({'name':name});
-                this.planView = {};
-                this.solutionView = {};
-                this.sourceView = {};
-                this.lessonHintView = {};
                 this.name = name;
             };
 
@@ -96,26 +104,19 @@ define(['jquery',
                     hasSource:this.lessonInfoModel.get('hasSource')
                 });
 
-                this.listenTo(this.helpControlsView,'hints:show',this.showHints);
-                this.listenTo(this.helpControlsView,'lessonOverview:show',this.showLessonOverview)
-                this.listenTo(this.helpControlsView,'solution:show',this.hideShowHelps);
-                this.listenTo(this.helpControlsView,'source:show',this.hideShowHelps);
+                this.listenTo(this.helpControlsView,'hints:show',this.showHintsView);
+
                 this.listenTo(this.helpControlsView,'lesson:restart',this.restartLesson);
                 this.listenTo(this.developerControlsView, 'dev:labels', this.restartLesson);
 
                 this.helpControlsView.render();
-                this.lessonOverview.hideLessonOverview();
+                this.showHintsView();
                 this.titleView.render(this.lessonInfoModel.get('lessonTitle'));
-                this.helpControlsView.showHideHintsButton({});
             };
 
             this.updateMenu = function() {
                 this.trigger('menu:reload')
             };
-
-            this.updateLessonOverview = function() {
-                this.lessonOverviewModel.fetch();
-            }
 
             this.onContentLoaded = function(loadHelps) {
                 this.lessonInfoModel = new LessonInfoModel();
@@ -125,12 +126,8 @@ define(['jquery',
                     this.helpControlsView = null;
                     this.lessonContentView.model = this.lessonContent;
                     this.lessonContentView.render();
-                    
-                    this.planView = new PlanView();
-                    this.solutionView = new SolutionView();
-                    this.sourceView = new SourceView();
-                    this.lessonHintView = new HintView();
-                    this.cookieView = new CookieView();
+                    //TODO: consider moving hintView as child of lessonContentView ...
+                    this.createLessonHintView();
 
                     //TODO: instantiate model with values (not sure why was not working before)
                     var paramModel = new ParamModel({});
@@ -146,45 +143,29 @@ define(['jquery',
                 this.lessonProgressModel.completed();
             };
 
+            this.createLessonHintView = function () {
+                if (this.lessonHintView) {
+                    this.lessonHintView.stopListening();
+                    this.lessonHintView = null;
+                }
+                this.lessonHintView = new HintView();
+            }
+
             this.addCurHelpState = function (curHelp) {
                 this.helpsLoaded[curHelp.helpElement] = curHelp.value;
             };
 
-            this.hideShowHelps = function(showHelp) {
-                var showId = '#lesson-' + showHelp + '-row';
-                var contentId = '#lesson-' + showHelp + '-content';
-                $('.lesson-help').not(showId).hide();
-                if (!showId) { 
-                    return;
+            this.showHintsView = function() {
+                if (!this.lessonHintView) {
+                    this.createLessonHintView();
                 }
-
-                if ($(showId).is(':visible')) {
-                    $(showId).hide();
-                    return;
-                } else {
-                    //TODO: move individual .html operations into individual help views
-                    switch(showHelp) {
-                        case 'plan':
-                            $(contentId).html(this.planView.model.get('content'));
-                            break;
-                        case 'solution':
-                            $(showId).html(this.solutionView.model.get('content'));
-                            break;
-                        case 'source':
-                            $(contentId).html('<pre>' + this.sourceView.model.get('content') + '</pre>');
-                            break;
-                    }
-                    $(showId).show();
-                    GoatUtils.scrollToHelp()
-                }
-            };
-
-            this.showHints = function() {
+                //
                 this.lessonHintView.render();
-            };
-
-            this.showLessonOverview = function() {
-               this.lessonOverviewModel.fetch().then(this.lessonOverview.render());
+                if (this.lessonHintView.getHintsCount() > 0) {
+                    this.helpControlsView.showHintsButton();
+                } else {
+                    this.helpControlsView.hideHintsButton();
+                }
             };
 
             this.restartLesson = function() {
@@ -194,6 +175,8 @@ define(['jquery',
                     method:'GET'
                 }).done(function(lessonLink) {
                     self.loadLesson(self.name);
+                    self.updateMenu();
+                    self.callPaginationUpdate();
                 });
             };
 
@@ -202,7 +185,12 @@ define(['jquery',
                 this.lessonContentView.showTestParam(param);
             };
 
+            this.callPaginationUpdate = function () {
+                this.lessonContentView.updatePagination();
+            }
+
         };
+
 
 
 

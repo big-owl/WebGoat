@@ -2,8 +2,8 @@ package org.owasp.webgoat.session;
 
 import lombok.extern.slf4j.Slf4j;
 import org.owasp.webgoat.lessons.AbstractLesson;
+import org.owasp.webgoat.users.WebGoatUser;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -40,10 +40,9 @@ import java.sql.SQLException;
 @Slf4j
 public class WebSession {
 
-    private final User currentUser;
+    private final WebGoatUser currentUser;
     private final WebgoatContext webgoatContext;
     private AbstractLesson currentLesson;
-    private UserTracker userTracker;
 
     /**
      * Constructor for the WebSession object
@@ -52,7 +51,7 @@ public class WebSession {
      */
     public WebSession(WebgoatContext webgoatContext) {
         this.webgoatContext = webgoatContext;
-        this.currentUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        this.currentUser = (WebGoatUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 
     /**

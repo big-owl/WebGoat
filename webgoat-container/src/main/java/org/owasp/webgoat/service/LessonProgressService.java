@@ -4,13 +4,13 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import org.owasp.webgoat.i18n.LabelManager;
 import org.owasp.webgoat.lessons.AbstractLesson;
 import org.owasp.webgoat.lessons.Assignment;
 import org.owasp.webgoat.lessons.LessonInfoModel;
-import org.owasp.webgoat.session.LessonTracker;
-import org.owasp.webgoat.session.UserTracker;
 import org.owasp.webgoat.session.WebSession;
+import org.owasp.webgoat.users.LessonTracker;
+import org.owasp.webgoat.users.UserTracker;
+import org.owasp.webgoat.users.UserTrackerRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -29,8 +29,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class LessonProgressService {
 
-    private LabelManager labelManager;
-    private UserTracker userTracker;
+    private UserTrackerRepository userTrackerRepository;
     private WebSession webSession;
 
     /**
@@ -41,16 +40,19 @@ public class LessonProgressService {
     @RequestMapping(value = "/service/lessonprogress.mvc", produces = "application/json")
     @ResponseBody
     public Map getLessonInfo() {
-        LessonTracker lessonTracker = userTracker.getLessonTracker(webSession.getCurrentLesson());
         Map json = Maps.newHashMap();
-        String successMessage = "";
-        boolean lessonCompleted = false;
-        if (lessonTracker != null) {
-            lessonCompleted = lessonTracker.isLessonSolved();
-            successMessage = labelManager.get("LessonCompleted");
+        UserTracker userTracker = userTrackerRepository.findByUser(webSession.getUserName());
+        if (webSession.getCurrentLesson() != null) {
+            LessonTracker lessonTracker = userTracker.getLessonTracker(webSession.getCurrentLesson());
+            String successMessage = "";
+            boolean lessonCompleted = false;
+            if (lessonTracker != null) {
+                lessonCompleted = lessonTracker.isLessonSolved();
+                successMessage = "LessonCompleted"; //@todo we still use this??
+            }
+            json.put("lessonCompleted", lessonCompleted);
+            json.put("successMessage", successMessage);
         }
-        json.put("lessonCompleted", lessonCompleted);
-        json.put("successMessage", successMessage);
         return json;
     }
 
@@ -63,6 +65,7 @@ public class LessonProgressService {
     @RequestMapping(value = "/service/lessonoverview.mvc", produces = "application/json")
     @ResponseBody
     public List<LessonOverview> lessonOverview() {
+        UserTracker userTracker = userTrackerRepository.findByUser(webSession.getUserName());
         AbstractLesson currentLesson = webSession.getCurrentLesson();
         List<LessonOverview> result = Lists.newArrayList();
         if ( currentLesson != null ) {

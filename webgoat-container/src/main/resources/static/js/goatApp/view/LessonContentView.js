@@ -3,13 +3,15 @@ define(['jquery',
     'underscore',
     'backbone',
     'libs/jquery.form',
-    'goatApp/view/ErrorNotificationView'],
+    'goatApp/view/ErrorNotificationView',
+    'goatApp/view/PaginationControlView'],
     function(
         $,
         _,
         Backbone,
         JQueryForm,
-        ErrorNotificationView) {
+        ErrorNotificationView,
+        PaginationControlView) {
     return Backbone.View.extend({
         el:'#lesson-content-wrapper', //TODO << get this fixed up in DOM
 
@@ -23,6 +25,9 @@ define(['jquery',
                 self.navToPage(page);
               }
             });
+            setInterval(function () {
+                this.updatePagination();
+            }.bind(this), 5000);
         },
 
         findPage: function(assignment) {
@@ -37,39 +42,30 @@ define(['jquery',
           return -1;
         },
 
-        /* initial renering */
+        /* initial rendering */
         render: function() {
             this.$el.find('.lesson-content').html(this.model.get('content'));
             this.$el.find('.attack-feedback').hide();
             this.$el.find('.attack-output').hide();
             this.makeFormsAjax();
-            //this.ajaxifyAttackHref();
             $(window).scrollTop(0); //work-around til we get the scroll down sorted out
-            this.initPagination();
+            var startPageNum = this.model.get('pageNum');
+            this.initPagination(startPageNum);
         },
 
-        initPagination: function() {
+        initPagination: function(startPageNum) {
             //get basic pagination info
-            this.currentPage = 0;
             this.$contentPages = this.$el.find('.lesson-page-wrapper');
-            this.numPages = this.$contentPages.length;
-
-            //
-            this.addPaginationControls();
-            if (this.numPages > 1) {
-                //no animation on init
-                this.$contentPages.hide();
-                this.$el.find(this.$contentPages[this.currentPage]).show();
-                this.showNextPageButton();
-                this.hidePrevPageButton();
-            } else if (this.numPages === 1) {
-                this.hideNextPageButton();
-                this.hidePrevPageButton();
-            }
+            var currentPage = (!isNaN(startPageNum) && startPageNum && startPageNum < this.$contentPages) ? startPageNum : 0;
+            //init views & pagination
+            this.showCurContentPage(currentPage);
+            this.paginationControlView = new PaginationControlView(this.$contentPages,this.model.get('lessonUrl'),startPageNum);
          },
 
-         setCurrentPage: function (pageNum) {
-            this.currentPage = (_.isNumber(pageNum) && pageNum < this.numPages) ? pageNum : 0;
+         updatePagination: function() {
+            if ( this.paginationControlView != undefined ) {
+                this.paginationControlView.updateCollection();
+            }
          },
 
          getCurrentPage: function () {
@@ -92,33 +88,51 @@ define(['jquery',
             var self = this;
             // TODO custom Data prep for submission
             var prepareDataFunctionName = $(curForm).attr('prepareData');
+            var callbackFunctionName = $(curForm).attr('callback');
             var submitData = (typeof webgoat.customjs[prepareDataFunctionName] === 'function') ? webgoat.customjs[prepareDataFunctionName]() : $(curForm).serialize();
+            var additionalHeadersFunctionName =  $(curForm).attr('additionalHeaders');
+            var additionalHeaders = (typeof webgoat.customjs[additionalHeadersFunctionName] === 'function') ? webgoat.customjs[additionalHeadersFunctionName]() : function() {};
+            var successCallBackFunctionName = $(curForm).attr('successCallback');
+            var failureCallbackFunctionName = $(curForm).attr('failureCallback');
+            var callbackFunction = (typeof webgoat.customjs[callbackFunctionName] === 'function') ? webgoat.customjs[callbackFunctionName] : function() {};
             // var submitData = this.$form.serialize();
             this.curForm = curForm;
             this.$curFeedback = $(curForm).closest('.attack-container').find('.attack-feedback');
             this.$curOutput = $(curForm).closest('.attack-container').find('.attack-output');
+
             var formUrl = $(curForm).attr('action');
             var formMethod = $(curForm).attr('method');
             var contentType = ($(curForm).attr('contentType')) ? $(curForm).attr('contentType') : 'application/x-www-form-urlencoded; charset=UTF-8';
             $.ajax({
                 //data:submitData,
                 url:formUrl,
+                headers: additionalHeaders,
                 method:formMethod,
                 contentType:contentType,
-                data: submitData
-            }).then(self.onSuccessResponse.bind(self), self.onErrorResponse.bind(self));
+                data: submitData,
+                //complete: function (data) {
+                    //callbackFunction(data);
+                //}
+            }).then(function(data){
+                 self.onSuccessResponse(data, failureCallbackFunctionName, successCallBackFunctionName)}, self.onErrorResponse.bind(self));
             return false;
          },
 
-        onSuccessResponse: function(data) {
+        onSuccessResponse: function(data, failureCallbackFunctionName, successCallBackFunctionName) {
             this.renderFeedback(data.feedback);
-
             this.renderOutput(data.output || "");
-            if (data.assignmentCompleted) {
+
+            //var submitData = (typeof webgoat.customjs[prepareDataFunctionName] === 'function') ? webgoat.customjs[prepareDataFunctionName]() : $(curForm).serialize();
+            var successCallbackFunction = (typeof webgoat.customjs[successCallBackFunctionName] === 'function') ? webgoat.customjs[successCallBackFunctionName] : function() {};
+            var failureCallbackFunction = (typeof webgoat.customjs[failureCallbackFunctionName] === 'function') ? webgoat.customjs[failureCallbackFunctionName] : function() {};
+            //TODO: refactor back assignmentCompleted in Java
+            if (data.lessonCompleted || data.assignmentCompleted) {
                 this.markAssignmentComplete();
+                successCallbackFunction(data); //data is likely not useful, except maybe the output ...
                 this.trigger('assignment:complete');
             } else {
-                this.markAssignmentIncomplete();
+                this.markAssignmentIncomplete(data); //again, data might be useful, especially the output
+                failureCallbackFunction();
             }
             return false;
         },
@@ -126,6 +140,7 @@ define(['jquery',
         markAssignmentComplete: function () {
             this.curForm.reset();
             $(this.curForm).siblings('.assignment-success').find('i').removeClass('hidden');
+            this.paginationControlView.updateCollection();
         },
 
         markAssignmentIncomplete: function () {
@@ -139,147 +154,55 @@ define(['jquery',
             return false;
         },
 
-        ajaxifyAttackHref: function() {  // rewrite any links with hrefs point to relative attack URLs
-            var self = this;
-            // instruct in template to have links returned with the attack-link class
-            $('a.attack-link').submit(function(event){
-                $.get(this.action, "json").then(self.onSuccessResponse, self.onErrorResponse);
-             });
+        removeSlashesFromJSON: function(str) {
+        // slashes are leftover escapes from JSON serialization by server
+        // for every two char sequence starting with backslash,
+        // replace them in the text with second char only
+            return str.replace(/\\(.)/g, "$1");
         },
 
         renderFeedback: function(feedback) {
-            this.$curFeedback.html(feedback || "");
+            var s = this.removeSlashesFromJSON(feedback);
+            this.$curFeedback.html(polyglot.t(s) || "");
             this.$curFeedback.show(400)
 
         },
 
         renderOutput: function(output) {
-            this.$curOutput.html(output || "");
+            var s = this.removeSlashesFromJSON(output);
+            this.$curOutput.html(polyglot.t(s) || "");
             this.$curOutput.show(400)
         },
 
-        /* create, show & hide pagination controls */
-
-        addPaginationControls: function() {
-            var pagingControlsDiv;
-            //this.$el.html();
-            //prev
-            var prevPageButton = $('<span>',{class:'glyphicon-class glyphicon glyphicon-circle-arrow-left show-prev-page'});
-            prevPageButton.unbind().on('click',this.decrementPageView.bind(this));
-            //next
-            var nextPageButton = $('<span>',{class:'glyphicon-class glyphicon glyphicon-circle-arrow-right show-next-page'});
-            nextPageButton.unbind().on('click',this.incrementPageView.bind(this));
-            //add to DOM
-            if (this.$el.find('#lesson-page-controls').length < 1) {
-                pagingControlsDiv = $('<div>',{class:'panel-body', id:'lesson-page-controls'});
-                pagingControlsDiv.append(prevPageButton);
-                pagingControlsDiv.append(nextPageButton);
-                this.$el.append(pagingControlsDiv);
-            }
-
-        },
-
-        showPrevPageButton: function() {
-            $('span.glyphicon-class.glyphicon.glyphicon-circle-arrow-left.show-prev-page').show();
-        },
-
-        hidePrevPageButton: function() {
-            $('span.glyphicon-class.glyphicon.glyphicon-circle-arrow-left.show-prev-page').hide();
-        },
-
-        showNextPageButton: function() {
-            $('span.glyphicon-class.glyphicon.glyphicon-circle-arrow-right.show-next-page').show();
-        },
-
-        hideNextPageButton: function() {
-            $('span.glyphicon-class.glyphicon.glyphicon-circle-arrow-right.show-next-page').hide();
-        },
-
-        /* increment, decrement & display handlers */
-        incrementPageView: function() {
-            if (this.currentPage < this.numPages -1) {
-               this.currentPage++;
-               window.location.href = this.model.get('lessonUrl') + '/' + this.currentPage;
-               //this.showCurContentPage(true);Con
-            }
-
-            if (this.currentPage > 0) {
-                this.showPrevPageButton();
-            }
-
-            if (this.currentPage >= this.numPages -1) {
-                this.hideNextPageButton();
-                this.showPrevPageButton;
-            }
-        },
-
-        decrementPageView: function() {
-            if (this.currentPage > 0) {
-                this.currentPage--;
-                window.location.href = this.model.get('lessonUrl') + '/' + this.currentPage;
-                //this.showCurContentPage(false);
-            }
-
-            if (this.currentPage < this.numPages -1) {
-                this.showNextPageButton();
-            }
-
-            if (this.currentPage == 0) {
-                this.hidePrevPageButton();
-                this.showNextPageButton()
-            }
-
-        },
-
-        showCurContentPage: function(isIncrement) {
+        showCurContentPage: function(pageNum) {
             this.$contentPages.hide();
-            this.$el.find(this.$contentPages[this.currentPage]).show();
+            this.$el.find(this.$contentPages[pageNum]).show();
         },
 
-        findAssigmentEndpointOnPage: function(pageNumber) {
-            var contentPage = this.$contentPages[this.currentPage];
-            var form = $('form.attack-form', contentPage);
-            var action = form.attr('action')
-            if (action !== undefined) {
-                return action;
+        findAssigmentEndpointsOnPage: function(pageNumber) {
+            var contentPage = this.$contentPages[pageNumber];
+            var endpoints = []; //going to assume uniqueness since these are assignments
+            var pageForms = $(contentPage).find('form.attack-form');
+            for (var i=0; i<pageForms.length; i++) {
+                endpoints.push(pageForms[i].action);
             }
+            console.log(endpoints);
+            return endpoints;
+        },
+
+        onNavToPage: function(pageNum) {
+            var assignmentPaths = this.findAssigmentEndpointsOnPage(pageNum);
+            this.trigger('endpoints:filtered',assignmentPaths);
         },
 
         navToPage: function (pageNum) {
-            this.setCurrentPage(pageNum);//provides validation
-            this.showCurContentPage(this.currentPage);
-            this.hideShowNavButtons();
-            var assignmentPath = this.findAssigmentEndpointOnPage(pageNum);
-            Backbone.trigger('navigatedToPage',{'pageNumber':pageNum, 'assignmentPath' : assignmentPath});
-        },
-
-        hideShowNavButtons: function () {
-            //one page only
-            if (this.numPages === 1) {
-                this.hidePrevPageButton();
-                this.hideNextPageButton();
-            }
-            //first page
-            if (this.currentPage === 0) {
-                this.hidePrevPageButton();
-                if (this.numPages > 1) {
-                    this.showNextPageButton();
-                }
-                return;
-            }
-            // > first page, but not last
-            if (this.currentPage > 0 && this.currentPage < this.numPages -1) {
-                this.showNextPageButton();
-                this.showPrevPageButton();
-                return;
-            }
-            // last page and more than one page
-            if (this.currentPage === this.numPages -1 && this.numPages > 1) {
-                this.hideNextPageButton();
-                this.showPrevPageButton();
-                return;
-            }
-
+            this.paginationControlView.setCurrentPage(pageNum);//provides validation
+            this.showCurContentPage(this.paginationControlView.currentPage);
+            this.paginationControlView.render();
+            this.paginationControlView.hideShowNavButtons();
+            this.onNavToPage(pageNum);
+            //var assignmentPaths = this.findAssigmentEndpointsOnPage(pageNum);
+            //this.trigger('endpoints:filtered',assignmentPaths);
         },
 
         /* for testing */

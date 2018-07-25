@@ -1,21 +1,17 @@
 package org.owasp.webgoat.plugin;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.owasp.webgoat.endpoints.AssignmentEndpoint;
-import org.owasp.webgoat.endpoints.AssignmentPath;
-import org.owasp.webgoat.lessons.AttackResult;
+import org.apache.commons.exec.OS;
+import org.owasp.webgoat.assignments.AssignmentEndpoint;
+import org.owasp.webgoat.assignments.AssignmentHints;
+import org.owasp.webgoat.assignments.AssignmentPath;
+import org.owasp.webgoat.assignments.AttackResult;
+import org.owasp.webgoat.session.WebSession;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 
-import javax.ws.rs.Path;
-import java.io.IOException;
-
-import static org.owasp.webgoat.plugin.SimpleXXE.checkSolution;
-import static org.owasp.webgoat.plugin.SimpleXXE.parseXml;
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 /**
  * ************************************************************************************************
@@ -46,36 +42,55 @@ import static org.owasp.webgoat.plugin.SimpleXXE.parseXml;
  * @version $Id: $Id
  * @since November 17, 2016
  */
-@AssignmentPath("XXE/content-type")
+@AssignmentPath("xxe/content-type")
+@AssignmentHints({"xxe.hints.content.type.xxe.1", "xxe.hints.content.type.xxe.2"})
 public class ContentTypeAssignment extends AssignmentEndpoint {
+
+    private final static String[] DEFAULT_LINUX_DIRECTORIES = {"usr", "etc", "var"}; 
+    private final static String[] DEFAULT_WINDOWS_DIRECTORIES = {"Windows", "Program Files (x86)", "Program Files"};
+
+
+    @Value("${webgoat.server.directory}")
+    private String webGoatHomeDirectory;
+    @Autowired
+    private WebSession webSession;
+    @Autowired
+    private Comments comments;
 
     @RequestMapping(method = RequestMethod.POST, consumes = MediaType.ALL_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public AttackResult createNewUser(@RequestBody String userInfo, @RequestHeader("Content-Type") String contentType) throws Exception {
-        User user = new User();
-        AttackResult attackResult = AttackResult.failed("Try again!");
-        if (MediaType.APPLICATION_JSON_VALUE.equals(contentType)) {
-            user = parseJson(userInfo);
-            attackResult = AttackResult.failed("You are posting JSON which does not work with a XXE");
+    public AttackResult createNewUser(@RequestBody String commentStr, @RequestHeader("Content-Type") String contentType) throws Exception {
+        AttackResult attackResult = failed().build();
+
+        if (APPLICATION_JSON_VALUE.equals(contentType)) {
+            comments.parseJson(commentStr).ifPresent(c -> comments.addComment(c, true));
+            attackResult = failed().feedback("xxe.content.type.feedback.json").build();
         }
+
         if (MediaType.APPLICATION_XML_VALUE.equals(contentType)) {
-            user = parseXml(userInfo);
-            attackResult = AttackResult.failed("You are posting XML but there is no XXE attack performed");
+            String error = "";
+            try {
+                Comment comment = comments.parseXml(commentStr);
+                comments.addComment(comment, false);
+                if (checkSolution(comment)) {
+                    attackResult = success().build();
+                }
+            } catch (Exception e) {
+                error = org.apache.commons.lang.exception.ExceptionUtils.getFullStackTrace(e);
+                attackResult = failed().feedback("xxe.content.type.feedback.xml").output(error).build();
+            }
         }
 
-        if (checkSolution(user)) {
-            attackResult = AttackResult.success(String.format("Welcome %s", user.getUsername()));
-        }
-        return attackResult;
+        return trackProgress(attackResult);
     }
 
-    private User parseJson(String userInfo) {
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            return mapper.readValue(userInfo, User.class);
-        } catch (IOException e) {
-            return new User();
-        }
-    }
+   private boolean checkSolution(Comment comment) {
+       String[] directoriesToCheck = OS.isFamilyMac() || OS.isFamilyUnix() ? DEFAULT_LINUX_DIRECTORIES : DEFAULT_WINDOWS_DIRECTORIES;
+       boolean success = true;
+       for (String directory : directoriesToCheck) {
+           success &= org.apache.commons.lang3.StringUtils.contains(comment.getText(), directory);
+       }
+       return success;
+   } 
 
 }

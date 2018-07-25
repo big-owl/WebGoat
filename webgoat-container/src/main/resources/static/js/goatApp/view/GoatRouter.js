@@ -1,4 +1,6 @@
 define(['jquery',
+    'libs/jquery-vuln',
+    'jqueryui',
     'underscore',
     'backbone',
     'goatApp/controller/LessonController',
@@ -8,6 +10,8 @@ define(['jquery',
     'goatApp/view/DeveloperControlsView',
     'goatApp/view/TitleView'
 ], function ($,
+             $vuln,
+             jqueryui,
              _,
              Backbone,
              LessonController,
@@ -48,22 +52,26 @@ define(['jquery',
 
         setUpCustomJS: function () {
             webgoat.customjs.jquery = $; //passing jquery into custom js scope ... still klunky, but works for now
+            webgoat.customjs.jqueryVuln = $vuln;
 
-            // temporary shim to support dom-xss lesson
+            // shim to support xss lesson
             webgoat.customjs.phoneHome = function (e) {
                 console.log('phoneHome invoked');
-                console.log(arguments.callee);
-                //
                 webgoat.customjs.jquery.ajax({
                     method: "POST",
-                    url: "/WebGoat/CrossSiteScripting/dom-xss",
+                    url: "/WebGoat/CrossSiteScripting/phone-home-xss",
                     data: {param1: 42, param2: 24},
                     headers: {
                         "webgoat-requested-by": "dom-xss-vuln"
                     },
-                    contentType: 'application/x-www-form-urlencoded; charset=UTF-8'
+                    contentType: 'application/x-www-form-urlencoded; charset=UTF-8',
+                    success: function (data) {
+                        //devs leave stuff like this in all the time
+                        console.log('phone home said '  + JSON.stringify(data));
+                    }
                 });
             }
+
         },
 
         initialize: function () {
@@ -90,6 +98,11 @@ define(['jquery',
             pageNum = (_.isNumber(parseInt(pageNum))) ? parseInt(pageNum) : 0;
             this.lessonController.loadLesson(name, pageNum);
             this.menuController.updateMenu(name);
+        },
+
+        testRoute: function (param) {
+            this.lessonController.testHandler(param);
+            //this.menuController.updateMenu(name);
         },
 
         welcomeRoute: function () {

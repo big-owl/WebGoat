@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.owasp.webgoat.lesson</groupId>
         <artifactId>webgoat-lessons-parent</artifactId>
-        <version>8.0-SNAPSHOT</version>
+        <version>v8.0.0.M20</version>
     </parent>
     <build>
        <plugins>
@@ -24,7 +24,7 @@
                        </goals>
                        <configuration>
                            <backend>html</backend>
-                           <sourceDirectory>src/main/resources/plugin/CrossSiteScripting/lessonPlans/en/</sourceDirectory>
+                           <sourceDirectory>src/main/resources/lessonPlans/en/</sourceDirectory>
                        </configuration>
                    </execution>
 

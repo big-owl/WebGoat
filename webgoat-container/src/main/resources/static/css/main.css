@@ -14,7 +14,7 @@ a:link,
 a:visited {
   text-decoration: none;
   outline: none;
-  color: #e84c3d;
+  /* color: #e84c3d; */
 }
 a:hover,
 a:active {
@@ -152,7 +152,7 @@ img {
     margin-left: 1.5em;*/
     margin-right: 5px;
     margin-top: -38px; /* << don't like doing this, but otherwise it does not line up correctly */
-    color:#0F0
+    color:#88FB88 /* #0F0 */
 }
 
 /* ==========================================================================
@@ -839,12 +839,6 @@ cookie-container {
   overflow-y:scroll auto;
   overflow-x:hidden;
 }
-
-#sidebar {
-  /*background-color:#333;*/
-  background-color:blue;
-}
-
   
 .sidebar-toggle {
   margin-left: -240px;
@@ -876,6 +870,7 @@ cookie-container {
   -ms-transition: all 200ms ease-in;
   transition: all 200ms ease-in;
 }
+
 #menu-container ul li a span {
   display: inline-block;
 }
@@ -897,6 +892,15 @@ cookie-container {
   margin-left:8px;
 }
 
+#menu-container ul ul li.selected a {
+    color:#e84c3d
+}
+
+#menu-container ul ul li.selected a:hover {
+    color:#ddd
+}
+
+
 #menu-container ul li a i {
   width: 20px;
 }
@@ -914,9 +918,11 @@ cookie-container {
   display: block;
 }
 
+#menu-container ul li:hover,
 #menu-container ul li a:hover,
 #menu-container ul li.active > a {
-  color: #e84c3d;
+  background-color: #e84c3d;
+  color:#ddd;
 }
 
 #menu-container ul span.lesson-complete {
@@ -927,9 +933,11 @@ cookie-container {
     display:inline-block;
 }
 
+/*
 #menu-container ul li.selected, #menu-container li a.selected {
-    background-color: ##aaa;
+    background-color: #aaa;
 }
+*/
 
 #menu-container ul li.stage {
   padding-left:3px;
@@ -937,6 +945,7 @@ cookie-container {
 
 #menu-container li.selected, #menu-container a.selected {
   color:#fff;
+  /* background-color:#000; */
   font-weight:550;
 }
 
@@ -949,8 +958,56 @@ cookie-container {
     cursor:pointer;
 }
 
+.page-nav-wrapper {
+    display:inline-block;
+    width: 30px;
+}
+
+.attack-link, .page-link {
+    display: inline-block;
+    background-color: #555;
+    border-radius: 8px;
+    min-width: 20px;
+    text-align: center;
+    font-weight: bold;
+    padding-top:2px;
+}
+
+.attack-link.solved-false {
+    background-color:#ac2925;
+    color:#fff;
+}
+
+.page-link {
+    color:#eee;
+}
+
+.attack-link.solved-true {
+    /*color:#88FB88;*/
+    background-color:#247506;
+    color:#fff;
+}
+
+.attack-link.cur-page, .page-link.cur-page {
+    color:#fff;
+    font-weight:bold;
+}
+
+.page-link-wrapper {
+    display:inline-block;
+}
+
+.page-link-wrapper span {
+    margin: 3px;
+}
+
+.cur-page {
+    border-bottom: 2px solid #000;
+    color:#aaa;
+}
+
 span.show-next-page, span.show-prev-page {
-font-size: 1.3em;
+    font-size: 1.3em;
 }
 
 .show-prev-page {
@@ -960,6 +1017,8 @@ font-size: 1.3em;
 .show-prev-page:hover {
     cursor:pointer;
 }
+
+/* attack ... */
 
 .attack-feedback {
     font-weight:800;
@@ -975,10 +1034,11 @@ font-size: 1.3em;
 }
 
 #lesson-hint {
-    background-color: #ccc;
+    background-color: #f1f1f1;
     border-radius: 4px;
-    border-color: #999;
-    margin-top:4px;
+    border-color: #4fa44c;
+    margin-top: 4px;
+    border: 2px solid #24b054;
 }
 
 #hintsViewTop{
@@ -1006,6 +1066,7 @@ font-size: 1.3em;
 
 /* ATTACK DISPLAY */
 .attack-container {
+  position: relative;
   background-color: #f1f1f1;
   border: 2px solid #a66;
   border-radius: 12px;
@@ -1022,6 +1083,7 @@ font-size: 1.3em;
   width: 35%;
 
 }
+
 #error-notification {
   text-align: center;
   border-radius: 4px;
@@ -1031,4 +1093,74 @@ font-size: 1.3em;
   font-weight: bold;
   font-size: 12px;
   padding: 10px;
+}
+
+/* temp override
+//TODO: come up with longer term solution for full-window viewing
+*/
+.col-md-8 {
+    width: 95% !important
+}
+
+/* scoreboard */
+div.scoreboard-title {
+    font-size:xx-large;
+}
+
+.scoreboard-table tr {
+}
+
+div.scoreboard-username {
+    background-color: #222;
+    color: aliceblue;
+    padding: 4px;
+    padding-left:8px;
+    font-size: x-large;
+    border-radius:6px;
+}
+
+th.username {
+    padding-bottom: 6px;
+}
+
+td.user-flags {
+    padding-left: 8px;
+    padding-bottom: 6px;
+}
+
+div.captured-flag {
+    border-radius: 6px;
+    background-color: #444;
+    color: white;
+    padding: 4px;
+    font-size: x-large;
+    display: inline-block;
+}
+
+.scoreboard-page {
+    background-color: #e0dfdc;
+    padding: 20px;
+}
+
+.fa-flag {
+    color:red
+}
+
+.appseceu-banner {
+    background: url('img/owasp_logo.jpg') no-repeat 0px 0px;
+    height: 117px;
+    width: 1268px;
+    margin-bottom: 20px;
+}
+
+#content {
+  position:relative;
+}
+
+.webwolf-enabled {
+  position:absolute;
+  top: 10px;
+  right: 25px;
+  width: 42px;
+  height: 47px;
 }

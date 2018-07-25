@@ -1,11 +1,9 @@
 package org.owasp.webgoat.lessons;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
+import com.google.common.collect.Lists;
+import lombok.*;
 
-import java.io.Serializable;
+import javax.persistence.*;
 import java.util.List;
 
 /**
@@ -37,15 +35,30 @@ import java.util.List;
  * @version $Id: $Id
  * @since November 25, 2016
  */
-@AllArgsConstructor
-@RequiredArgsConstructor
 @Getter
-public class Assignment implements Serializable {
+@EqualsAndHashCode
+@Entity
+public class Assignment {
 
-    @NonNull
-    private final String name;
-    @NonNull
-    private final String path;
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private Long id;
+    private String name;
+    private String path;
+    @Transient
     private List<String> hints;
 
+    private Assignment() {
+        //Hibernate
+    }
+
+    public Assignment(String name, String path) {
+        this(name, path, Lists.newArrayList());
+    }
+
+    public Assignment(String name, String path, List<String> hints) {
+        this.name = name;
+        this.path = path;
+        this.hints = hints;
+    }
 }
